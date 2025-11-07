@@ -112,3 +112,117 @@ query2 = np.array([9, 9]).reshape(1, -1)
 
 print("Ensemble prediction for [1,5]:", ensemble_predict(query1))
 print("Ensemble prediction for [9,9]:", ensemble_predict(query2))
+
+###code for 8b
+
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn.tree import DecisionTreeRegressor, plot_tree
+
+# Set seed for reproducibility
+np.random.seed(42)
+
+# Generate synthetic data
+X = np.random.rand(100, 1) - 0.5
+y = 3 * X[:, 0]**2 + 0.05 * np.random.randn(100)
+
+# ---------------- Polynomial Gradient Boosting ----------------
+n_estimators = 5
+learning_rate = 1.0
+prediction = np.zeros_like(y)
+intermediate_preds = []
+
+for i in range(n_estimators):
+    residual = y - prediction
+    coeffs = np.polyfit(X[:, 0], residual, deg=2)
+    model_pred = np.polyval(coeffs, X[:, 0])
+    prediction += learning_rate * model_pred
+    intermediate_preds.append(prediction.copy())
+
+# Plotting: 4 subplots for polynomial boosting
+fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+for idx, ax in enumerate(axs.flat):
+    for i in range(n_estimators - 1):
+        ax.plot(X[:, 0], intermediate_preds[i], 'r', linewidth=1)
+    ax.plot(X[:, 0], intermediate_preds[-1], 'b', linewidth=2)
+    ax.set_title(f'Poly Boosting Graph {idx + 1}')
+    ax.set_xlim(-0.6, 0.6)
+    ax.set_ylim(0.0, 0.8)
+    ax.grid(True)
+
+plt.tight_layout()
+plt.suptitle("Polynomial Gradient Boosting - 4 Graphs", fontsize=16, y=1.03)
+plt.show()
+
+# ---------------- Decision Tree Gradient Boosting ----------------
+df = pd.DataFrame({'X': X.reshape(100), 'y': y})
+
+# Plot original data
+plt.scatter(df['X'], df['y'])
+plt.title('X vs y')
+plt.xlabel('X')
+plt.ylabel('y')
+plt.show()
+
+# Initial prediction: mean of y
+df['pred1'] = df['y'].mean()
+df['res1'] = df['y'] - df['pred1']
+
+# Plot residuals
+plt.scatter(df['X'], df['y'], label='Actual y')
+plt.plot(df['X'], df['pred1'], color='red', label='Initial Prediction')
+plt.title('Initial Prediction vs Actual')
+plt.xlabel('X')
+plt.ylabel('y')
+plt.legend()
+plt.show()
+
+# Fit first decision tree on residuals
+tree1 = DecisionTreeRegressor(max_leaf_nodes=8, random_state=42)
+tree1.fit(df[['X']], df['res1'])
+
+# Visualize the tree
+plt.figure(figsize=(10, 6))
+plot_tree(tree1, filled=True, feature_names=['X'])
+plt.title('First Decision Tree')
+plt.show()
+
+# Update predictions
+df['pred2'] = df['pred1'] + tree1.predict(df[['X']])
+df['res2'] = df['y'] - df['pred2']
+
+# Recursive Gradient Boosting with Decision Trees
+def gradient_boost(X, y, number, lr, count=1, regs=None, foo=None):
+    if regs is None:
+        regs = []
+
+    if number == 0:
+        return
+
+    if count > 1:
+        y = y - lr * regs[-1].predict(X)
+    else:
+        foo = y
+
+    tree_reg = DecisionTreeRegressor(max_depth=5, random_state=42)
+    tree_reg.fit(X, y)
+    regs.append(tree_reg)
+
+    x1 = np.linspace(-0.5, 0.5, 500).reshape(-1, 1)
+    y_pred = sum(lr * reg.predict(x1) for reg in regs)
+
+    print(f"Boosting Round: {count}")
+    plt.figure()
+    plt.plot(x1, y_pred, label='Boosted Prediction', linewidth=2)
+    plt.scatter(X[:, 0], foo, color='red', label='True y', alpha=0.6)
+    plt.title(f'Decision Tree Boosting Round {count}')
+    plt.xlabel('X')
+    plt.ylabel('y')
+    plt.legend()
+    plt.show()
+
+    gradient_boost(X, y, number - 1, lr, count + 1, regs, foo=foo)
+
+# Run Decision Tree Gradient Boosting
+gradient_boost(X, y, number=5, lr=1)
